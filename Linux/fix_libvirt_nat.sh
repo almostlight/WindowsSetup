@@ -15,10 +15,11 @@ log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
+# lukasz ALL=(root) NOPASSWD: /usr/bin/virsh -c qemu:///system
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
     log_error "This script must be run as root"
-    exit 1
+    # exit 1
 fi
 
 # Determine which interface to use
@@ -46,20 +47,20 @@ fi
 
 # Check current libvirt networks
 log_info "Checking libvirt networks..."
-LIBVIRT_NETS=$(virsh net-list --name 2>/dev/null || echo "")
+LIBVIRT_NETS=$(virsh -c qemu:///system net-list --name 2>/dev/null || echo "")
 
 if [[ -z "$LIBVIRT_NETS" ]]; then
     log_warn "No active libvirt networks found"
     
     # Check if default network exists but is inactive
-    if virsh net-list --all | grep -q "default.*inactive"; then
+    if virsh -c qemu:///system net-list --all | grep -q "default.*inactive"; then
         log_info "Starting default libvirt network..."
-        virsh net-start default
-        virsh net-autostart default
+        virsh -c qemu:///system net-start default
+        virsh -c qemu:///system net-autostart default
         LIBVIRT_NETS="default"
     else
         log_info "Creating default NAT network..."
-        virsh net-define /dev/stdin <<EOF
+        virsh -c qemu:///system net-define /dev/stdin <<EOF
 <network>
   <name>default</name>
   <forward mode='nat'>
@@ -73,21 +74,21 @@ if [[ -z "$LIBVIRT_NETS" ]]; then
   </ip>
 </network>
 EOF
-        virsh net-start default
-        virsh net-autostart default
+        virsh -c qemu:///system net-start default
+        virsh -c qemu:///system net-autostart default
         LIBVIRT_NETS="default"
     fi
 fi
 
-# Function to check if iptables has NAT rule for subnet
+# Function to check if sudo iptables has NAT rule for subnet
 check_nat_for_subnet() {
     local subnet=$1
-    if command -v iptables &>/dev/null; then
-        iptables -t nat -L -n 2>/dev/null | grep -q "$subnet"
+    if command -v sudo iptables &>/dev/null; then
+        sudo iptables -t nat -L -n 2>/dev/null | grep -q "$subnet"
     elif command -v nft &>/dev/null; then
         nft list ruleset 2>/dev/null | grep -q "$subnet"
     else
-        log_error "Neither iptables nor nft found"
+        log_error "Neither sudo iptables nor nft found"
         return 1
     fi
 }
@@ -99,20 +100,20 @@ add_nat_for_subnet() {
     
     log_info "Adding NAT rules for $subnet via $iface..."
     
-    if command -v iptables &>/dev/null; then
+    if command -v sudo iptables &>/dev/null; then
         # Check if rule already exists
-        if ! iptables -t nat -C POSTROUTING -s "$subnet" -j MASQUERADE 2>/dev/null; then
-            iptables -t nat -A POSTROUTING -s "$subnet" -j MASQUERADE
-            log_success "Added iptables NAT rule"
+        if ! sudo iptables -t nat -C POSTROUTING -s "$subnet" -j MASQUERADE 2>/dev/null; then
+            sudo iptables -t nat -A POSTROUTING -s "$subnet" -j MASQUERADE
+            log_success "Added sudo iptables NAT rule"
         else
-            log_info "NAT rule already exists in iptables"
+            log_info "NAT rule already exists in sudo iptables"
         fi
         
         # Add forward rules if needed
-        if ! iptables -C FORWARD -s "$subnet" -j ACCEPT 2>/dev/null; then
-            iptables -I FORWARD 1 -s "$subnet" -j ACCEPT
-            iptables -I FORWARD 1 -d "$subnet" -j ACCEPT
-            log_success "Added iptables FORWARD rules"
+        if ! sudo iptables -C FORWARD -s "$subnet" -j ACCEPT 2>/dev/null; then
+            sudo iptables -I FORWARD 1 -s "$subnet" -j ACCEPT
+            sudo iptables -I FORWARD 1 -d "$subnet" -j ACCEPT
+            log_success "Added sudo iptables FORWARD rules"
         fi
     elif command -v nft &>/dev/null; then
         log_warn "nftables support is basic - you may need to configure manually"
@@ -127,7 +128,7 @@ add_nat_for_subnet() {
 # Function to get subnet from libvirt network
 get_network_subnet() {
     local net_name=$1
-    virsh net-dumpxml "$net_name" 2>/dev/null | \
+    virsh -c qemu:///system net-dumpxml "$net_name" 2>/dev/null | \
         grep -oP "ip address='\K[0-9.]+" | head -1
 }
 
@@ -136,7 +137,7 @@ for NET in $LIBVIRT_NETS; do
     log_info "Processing network: $NET"
     
     # Get network info
-    NET_INFO=$(virsh net-info "$NET" 2>/dev/null || true)
+    NET_INFO=$(virsh -c qemu:///system net-info "$NET" 2>/dev/null || true)
     if [[ -z "$NET_INFO" ]]; then
         log_warn "Could not get info for network $NET"
         continue
@@ -188,8 +189,8 @@ echo "  - IP forwarding: $(sysctl -n net.ipv4.ip_forward)"
 echo "  - Active libvirt networks: $(echo $LIBVIRT_NETS | tr '\n' ' ')"
 echo ""
 echo "Current NAT rules:"
-if command -v iptables &>/dev/null; then
-    iptables -t nat -L POSTROUTING -n -v 2>/dev/null | grep -E "(MASQUERADE|192\.168)"
+if command -v sudo iptables &>/dev/null; then
+    sudo iptables -t nat -L POSTROUTING -n -v 2>/dev/null | grep -E "(MASQUERADE|192\.168)"
 elif command -v nft &>/dev/null; then
     nft list ruleset 2>/dev/null | grep -A5 -B5 "nat"
 fi

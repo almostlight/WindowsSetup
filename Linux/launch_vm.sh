@@ -1,6 +1,7 @@
 #!/bin/bash
 
-VM_NAME=$(sudo virsh list --all --name | grep -i "win")
+DIR="$(dirname $(realpath $0))"
+VM_NAME=$(virsh -c qemu:///system list --all --name | grep -i "win")
 
 # Logging setup
 LOG_DIR="$HOME/.local/share/looking-glass-logs"
@@ -11,7 +12,7 @@ LOG_FILE="$LOG_DIR/${VM_NAME}_lg.log"
 launch() {
 	looking-glass-client \
 	    -m KEY_RIGHTCTRL \
-	    -n \
+	    -n -F \
 	    wayland:fractionScale=yes \
 	    opengl:vsync=no \
 	    opengl:preventBuffer=yes \
@@ -25,13 +26,15 @@ launch() {
 }
 
 echo "Launching $VM_NAME at $(date) " | tee -a "$LOG_FILE"
+$DIR/fix-libvirt-nat
+systemctl --user start pipewire wireplumber
 
 # Start VM if not running
 echo "Starting VM $VM_NAME..." | tee -a "$LOG_FILE"
-sudo virsh start "$VM_NAME" >/dev/null 2>&1 || echo "VM may already be running" | tee -a "$LOG_FILE"
+sudo virsh -c qemu:///system start "$VM_NAME" >/dev/null 2>&1 || echo "VM may already be running" | tee -a "$LOG_FILE"
 
 # Wait until VM is running
-until sudo virsh domstate "$VM_NAME" | grep -q running; do
+until sudo virsh -c qemu:///system domstate "$VM_NAME" | grep -q running; do
     echo "Waiting for VM to run..." #| tee -a "$LOG_FILE"
     sleep 1
 done
