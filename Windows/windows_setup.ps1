@@ -142,7 +142,7 @@ Run-Step "packages" {
 }
 
 Run-Step "repo" {
-    $Repo = Join-Path $BasePath "Win11-Virt"
+    $Repo = Join-Path $BasePath "WindowsSetup"
 
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
         throw "Git missing"
@@ -151,7 +151,7 @@ Run-Step "repo" {
     if (Test-Path $Repo) {
         git -C $Repo pull
     } else {
-        git clone https://github.com/almostlight/Win11-Virt $Repo
+        git clone https://github.com/almostlight/WindowsSetup $Repo
     }
 }
 
