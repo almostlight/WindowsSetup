@@ -12,18 +12,7 @@ TIMESTAMP=$(date '+%Y-%m-%d_%H-%M-%S')
 LOG_FILE="$LOG_DIR/${VM_NAME}_lg.log"
 # Launch function
 launch() {
-	looking-glass-client \
-	    -m KEY_RIGHTCTRL \
-	    -s -n -T -S \
-	    wayland:fractionScale=no \
-	    opengl:vsync=no \
-	    opengl:preventBuffer=yes \
-	    spice:showCursorDot=yes \
-	    input:autoCapture=yes \
-		input:captureOnFocus=yes \
-		input:grabKeyboardOnFocus=yes \
-	    input:captureOnly=yes \
-		spice:clipboard=yes \
+	looking-glass-client -m KEY_RIGHTCTRL \
 	    2>&1 | tee -a "$LOG_FILE" 
 }
 
