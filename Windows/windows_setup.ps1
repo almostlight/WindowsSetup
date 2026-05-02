@@ -137,7 +137,8 @@ Run-Step "packages" {
         "GitHub.cli",
         "M2Team.NanaZip",
         "REALiX.HWiNFO",
-        "Brave.Brave"
+        "Brave.Brave",
+		"Microsoft.VisualStudioCode"
     ) | ForEach-Object { Install-Package $_ }
 }
 

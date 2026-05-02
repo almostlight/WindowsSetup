@@ -3,6 +3,8 @@
 DIR="$(dirname $(realpath $0))"
 VM_NAME=$(virsh -c qemu:///system list --all --name | grep -i "win")
 
+touch /dev/shm/looking-glass && chown "$(whoami)":kvm /dev/shm/looking-glass && chmod 660 /dev/shm/looking-glass
+
 # Logging setup
 LOG_DIR="$HOME/.local/share/looking-glass-logs"
 mkdir -p "$LOG_DIR"
@@ -12,8 +14,8 @@ LOG_FILE="$LOG_DIR/${VM_NAME}_lg.log"
 launch() {
 	looking-glass-client \
 	    -m KEY_RIGHTCTRL \
-	    -n -F \
-	    wayland:fractionScale=yes \
+	    -s -n -T -S \
+	    wayland:fractionScale=no \
 	    opengl:vsync=no \
 	    opengl:preventBuffer=yes \
 	    spice:showCursorDot=yes \
