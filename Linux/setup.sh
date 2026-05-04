@@ -42,7 +42,7 @@ else
 	exit
 fi
 
-if [[ !$(which looking-glass-client 2>/dev/null) ]]; then
+if ! [[ -x "$(command -v looking-glass-client 2>/dev/null)" ]]; then
 	cd $DIR
 	wget https://looking-glass.io/artifact/stable/source -O looking_glass.tar.gz
 	mkdir -p looking_glass_source && tar -xf looking_glass.tar.gz -C looking_glass_source --strip-components=1
