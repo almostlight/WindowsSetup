@@ -3,9 +3,9 @@
 VM_NAME=$(sudo virsh list --all --name | grep -i "win")
 DIR="$(dirname $(realpath $0))"
 BIN_DIR="$HOME/.local/bin"
-TARGET="$HOME/.local/share/applications/looking-glass-${VM_NAME}.desktop"
-ICON_TARGET="$HOME/.local/share/icons/looking-glass-${VM_NAME}.svg"
-LAUNCHER_TARGET="$BIN_DIR/looking-glass-${VM_NAME}"
+TARGET="$HOME/.local/share/applications/${VM_NAME}-looking-glass.desktop"
+ICON_TARGET="$HOME/.local/share/icons/${VM_NAME}-looking-glass.svg"
+LAUNCHER_TARGET="$BIN_DIR/${VM_NAME}-launch"
 
 chmod +x "$DIR"/*.sh
 
@@ -42,14 +42,15 @@ else
 	exit
 fi
 
-
-cd $DIR
-wget https://looking-glass.io/artifact/stable/source -O looking_glass.tar.gz
-mkdir -p looking_glass_source && tar -xf looking_glass.tar.gz -C looking_glass_source --strip-components=1
-cd looking_glass_source/ && mkdir -p client/build/ && cd client/build/ && \
-	cmake -DCMAKE_INSTALL_PREFIX=~/.local .. && make install
-cd $DIR
-rm -rf ./looking_glass.tar.gz 
+if [[ !$(which looking-glass-client 2>/dev/null) ]]; then
+	cd $DIR
+	wget https://looking-glass.io/artifact/stable/source -O looking_glass.tar.gz
+	mkdir -p looking_glass_source && tar -xf looking_glass.tar.gz -C looking_glass_source --strip-components=1
+	cd looking_glass_source/ && mkdir -p client/build/ && cd client/build/ && \
+		cmake -DCMAKE_INSTALL_PREFIX=~/.local .. && make install
+	cd $DIR
+	rm -rf ./looking_glass.tar.gz 
+fi
 
 mkdir -p "$(dirname "$TARGET")"
 mkdir -p "$(dirname "$LAUNCHER_TARGET")"
@@ -63,7 +64,7 @@ cp -f "$DIR/fix_libvirt_nat.sh" "$BIN_DIR/fix-libvirt-nat"
 # black magic with rev: https://unix.stackexchange.com/a/617832
 echo "
 [Desktop Entry]
-Name=Windows 11 (Looking Glass)
+Name=Windows 11
 Comment=Launch Windows 11 VM with Looking Glass
 Exec=$LAUNCHER_TARGET
 Icon=$(realpath $ICON_TARGET |rev| cut -d"." -f2- |rev)
@@ -108,4 +109,6 @@ sudo usermod -aG libvirt,kvm "$(whoami)"
 supergfxctl -m Vfio
 
 echo "Setup complete! You can now launch Windows 11 via your application menu."
+
+killall startplasma-wayland
 
