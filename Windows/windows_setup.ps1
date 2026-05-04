@@ -138,8 +138,10 @@ Run-Step "packages" {
         "M2Team.NanaZip",
         "REALiX.HWiNFO",
         "Brave.Brave",
-	"Microsoft.VisualStudioCode",
-	"9NBLGGH43VHV" # Samsung Notes
+        "Microsoft.VisualStudioCode",
+        "9NBLGGH43VHV", # Samsung Notes
+        "9P98T77876KZ", # Samsung Account
+        "vim.vim"
     ) | ForEach-Object { Install-Package $_ }
 }
 
