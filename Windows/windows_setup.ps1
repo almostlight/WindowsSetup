@@ -1,3 +1,4 @@
+# Yes, it is vibe-coded. I'm not learning Powershell. 
 param(
     [switch]$WhatIf
 )
@@ -130,6 +131,37 @@ function Get-LatestGitHubRelease {
     return $asset.browser_download_url
 }
 
+function Get-AutoHotkeyExe {
+    foreach ($commandName in @("AutoHotkey64.exe", "AutoHotkey.exe")) {
+        $command = Get-Command $commandName -ErrorAction SilentlyContinue
+
+        if ($command) {
+            $path = $command.Source
+
+            if (-not $path) {
+                $path = $command.Path
+            }
+
+            if ($path -and (Test-Path $path)) {
+                return $path
+            }
+        }
+    }
+
+    foreach ($path in @(
+        "$env:ProgramFiles\AutoHotkey\v2\AutoHotkey64.exe",
+        "$env:ProgramFiles\AutoHotkey\v2\AutoHotkey.exe",
+        "$env:ProgramFiles\AutoHotkey\AutoHotkey64.exe",
+        "$env:ProgramFiles\AutoHotkey\AutoHotkey.exe"
+    )) {
+        if (Test-Path $path) {
+            return $path
+        }
+    }
+
+    return $null
+}
+
 Run-Step "packages" {
     @(
         "Microsoft.PowerShell",
@@ -143,6 +175,12 @@ Run-Step "packages" {
         "vim.vim",
         "7zip.7zip"
     ) | ForEach-Object { Install-Package $_ }
+}
+
+Run-Step "autohotkey" {
+    if (-not (Get-AutoHotkeyExe)) {
+        Install-Package "AutoHotkey.AutoHotkey"
+    }
 }
 
 Run-Step "edge-blocker" {
@@ -258,6 +296,33 @@ Run-Step "keyboard" {
     $lang[0].InputMethodTips.Clear()
     $lang[0].InputMethodTips.Add("0415:00000415")
     Set-WinUserLanguageList $lang -Force
+}
+
+Run-Step "capsremap" {
+    $ahkExe = Get-AutoHotkeyExe
+
+    if (-not $ahkExe) {
+        throw "AutoHotkey executable not found"
+    }
+
+    $remapDir = Join-Path $BasePath "Keyboard"
+    New-Item -ItemType Directory -Force -Path $remapDir | Out-Null
+
+    $remapScript = Join-Path $remapDir "CapsRemap.ahk"
+    @"
+#Requires AutoHotkey v2.0
+CapsLock::Send "{Esc}"
++CapsLock::Send "{CapsLock}"
+"@ | Set-Content -Path $remapScript -Encoding UTF8
+
+    $startup = [Environment]::GetFolderPath("Startup")
+    $shortcutPath = Join-Path $startup "Caps Remap.lnk"
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $shell.CreateShortcut($shortcutPath)
+    $shortcut.TargetPath = $ahkExe
+    $shortcut.Arguments = "`"$remapScript`""
+    $shortcut.WorkingDirectory = $remapDir
+    $shortcut.Save()
 }
 
 Run-Step "winkey" {
