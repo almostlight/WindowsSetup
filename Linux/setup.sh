@@ -5,7 +5,7 @@ DIR="$(dirname $(realpath $0))"
 BIN_DIR="$HOME/.local/bin"
 TARGET="$HOME/.local/share/applications/${VM_NAME}-looking-glass.desktop"
 ICON_TARGET="$HOME/.local/share/icons/${VM_NAME}-looking-glass.svg"
-LAUNCHER_TARGET="$BIN_DIR/${VM_NAME}-launch"
+LAUNCHER_TARGET="$BIN_DIR/${VM_NAME}_launch"
 
 chmod +x "$DIR"/*.sh
 
@@ -69,11 +69,9 @@ Comment=Launch Windows 11 VM with Looking Glass
 Exec=$LAUNCHER_TARGET
 Icon=$(realpath $ICON_TARGET |rev| cut -d"." -f2- |rev)
 Terminal=false
-# Terminal=true
 Type=Application
 Categories=System;Emulator;
 StartupNotify=true
-StartupWMClass=looking-glass-client
 " | tee $TARGET > /dev/null 2>&1
 
 sudo usermod -aG libvirt,kvm "$(whoami)"
@@ -109,6 +107,4 @@ sudo usermod -aG libvirt,kvm "$(whoami)"
 supergfxctl -m Vfio
 
 echo "Setup complete! You can now launch Windows 11 via your application menu."
-
-killall startplasma-wayland
 

@@ -135,14 +135,43 @@ Run-Step "packages" {
         "Microsoft.PowerShell",
         "Git.Git",
         "GitHub.cli",
-        "M2Team.NanaZip",
         "REALiX.HWiNFO",
         "Brave.Brave",
         "Microsoft.VisualStudioCode",
         "9NBLGGH43VHV", # Samsung Notes
         "9P98T77876KZ", # Samsung Account
-        "vim.vim"
+        "vim.vim",
+        "7zip.7zip"
     ) | ForEach-Object { Install-Package $_ }
+}
+
+Run-Step "edge-blocker" {
+    $edgeUrl = "https://securedl.chip-downloads.de/downloads/41092168/EdgeBlock2.0.zip?cdr=4&cid=88734083&platform=chip&1779964617-1779972117-46994b-B-30a845019b172eaee80a888a40bb5b9f"
+    $out = Join-Path $Downloads "EdgeBlocker.zip"
+    $dir = Join-Path $Downloads "EdgeBlocker"
+
+    try {
+        Write-Log "Downloading Edge Blocker from secured mirror"
+        Get-File $edgeUrl $out
+
+        if (Test-Path $dir) { Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue }
+        Expand-Archive $out $dir -Force
+
+        $exe = Get-ChildItem $dir -Recurse -Filter "*EdgeBlock*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+
+        if ($exe) {
+            Write-Log "Launching Edge Blocker: $($exe.FullName)"
+            Start-Process -FilePath $exe.FullName -WorkingDirectory $dir -Verb RunAs
+        } else {
+            Write-Log "EdgeBlocker executable not found after extraction, opening download pages" "WARN"
+            Start-Process "https://www.sordum.org/9312/edge-blocker-v2-0/"
+            Start-Process "https://github.com/Sordum/Edge-Blocker/releases"
+        }
+    } catch {
+        Write-Log "Edge Blocker automated install failed: $_" "WARN"
+        Start-Process "https://www.sordum.org/9312/edge-blocker-v2-0/"
+        Start-Process "https://github.com/Sordum/Edge-Blocker/releases"
+    }
 }
 
 Run-Step "repo" {
@@ -231,6 +260,17 @@ Run-Step "keyboard" {
     Set-WinUserLanguageList $lang -Force
 }
 
+Run-Step "winkey" {
+    try {
+        $p = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"
+        New-Item -Path $p -Force | Out-Null
+        Set-ItemProperty -Path $p -Name "NoWinKeys" -Value 0 -Type DWord -Force
+        Write-Log "Win key enabled"
+    } catch {
+        Write-Log "Failed enabling Win key: $_" "ERROR"
+    }
+}
+
 # =========================
 # DEBLOAT
 # =========================
@@ -287,21 +327,40 @@ Run-Step "vdd" {
 # =========================
 
 Run-Step "nvclean" {
+    $nvUrl = "https://securedl.chip-downloads.de/downloads/121468823/NVCleanstall_1.19.0.exe?cdr=4&cid=176735254&platform=chip&1779964955-1779972455-6c9997-B-933592b8e46cca0af302c6d4d04b9043.exe"
+    $path = Join-Path $Downloads "NVCleanstall_1.19.0.exe"
 
-    $path = Join-Path $Downloads "NVCleanstall.exe"
-
-    if (Test-Path $path) {
-        Remove-Item $path -Force -ErrorAction SilentlyContinue
+    function Test-IsHtmlFile($p) {
+        try {
+            $bytes = [System.IO.File]::ReadAllBytes($p)
+            $len = [Math]::Min(512, $bytes.Length)
+            $s = [System.Text.Encoding]::ASCII.GetString($bytes,0,$len)
+            if ($s -match '<!doctype' -or $s -match '<html') { return $true }
+        } catch { }
+        return $false
     }
 
-    Write-Log "Downloading NVCleanstall..." "INFO"
+    try {
+        if (Test-Path $path) { Remove-Item $path -Force -ErrorAction SilentlyContinue }
 
-    Get-File "https://sourceforge.net/projects/nvcleanstall/files/latest/download" $path
-    
-    Start-Sleep -s 10
+        Write-Log "Downloading NVCleanstall from secured mirror"
+        Get-File $nvUrl $path
 
-    Write-Log "Launching NVCleanstall..." "SUCCESS"
-    Start-Process $path
+        if (-not (Test-Path $path)) { throw "Download failed: $nvUrl" }
+
+        if (Test-IsHtmlFile $path) {
+            Write-Log "Downloaded file appears to be HTML/redirect; removing and falling back" "WARN"
+            Remove-Item $path -Force -ErrorAction SilentlyContinue
+            throw "Downloaded file invalid (HTML)"
+        }
+
+        Write-Log "Launching NVCleanstall: $path"
+        Start-Process -FilePath $path -WorkingDirectory $Downloads -Verb RunAs
+    } catch {
+        Write-Log "NVCleanstall automated install failed: $_" "WARN"
+        Start-Process "https://sourceforge.net/projects/nvcleanstall/files/"
+        Start-Process "https://sourceforge.net/projects/nvcleanstall/files/latest/download"
+    }
 }
 
 # =========================
@@ -372,6 +431,5 @@ Run-Step "open log" {
 
 # Explorer restart
 Stop-Process explorer -Force
-Start-Process explorer.exe
 
 Write-Log "Provisioning complete"

@@ -12,12 +12,19 @@ TIMESTAMP=$(date '+%Y-%m-%d_%H-%M-%S')
 LOG_FILE="$LOG_DIR/${VM_NAME}_lg.log"
 # Launch function
 launch() {
+	# screen -dmS looking_glass \
 	looking-glass-client -m KEY_RIGHTCTRL \
-	    2>&1 | tee -a "$LOG_FILE" 
+		wayland:fractionScale=no \
+		win:dontUpscale=yes \
+		&> "$LOG_FILE" &
 }
 
+# Launch Looking Glass
+echo "Launching Looking Glass..." | tee -a "$LOG_FILE"
+launch
+
 echo "Launching $VM_NAME at $(date) " | tee -a "$LOG_FILE"
-$DIR/fix-libvirt-nat
+$DIR/fix_libvirt_nat.sh
 systemctl --user start pipewire wireplumber
 
 # Start VM if not running
@@ -30,10 +37,4 @@ until sudo virsh -c qemu:///system domstate "$VM_NAME" | grep -q running; do
     sleep 1
 done
 echo "VM $VM_NAME is running." | tee -a "$LOG_FILE"
-
-# Launch Looking Glass
-echo "Launching Looking Glass..." | tee -a "$LOG_FILE"
-launch
-
-echo "Session over" | tee -a "$LOG_FILE"
 
