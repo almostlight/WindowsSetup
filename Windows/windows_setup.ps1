@@ -173,7 +173,9 @@ Run-Step "packages" {
         "9NBLGGH43VHV", # Samsung Notes
         "9P98T77876KZ", # Samsung Account
         "vim.vim",
-        "7zip.7zip"
+        "7zip.7zip",
+        "KeePassXCTeam.KeePassXC",
+        "Microsoft.PowerToys"
     ) | ForEach-Object { Install-Package $_ }
 }
 
