@@ -164,14 +164,12 @@ function Get-AutoHotkeyExe {
 
 Run-Step "packages" {
     @(
+        "Mozilla.Firefox",
         "Microsoft.PowerShell",
         "Git.Git",
         "GitHub.cli",
         "REALiX.HWiNFO",
-        "Brave.Brave",
         "Microsoft.VisualStudioCode",
-        "9NBLGGH43VHV", # Samsung Notes
-        "9P98T77876KZ", # Samsung Account
         "vim.vim",
         "7zip.7zip",
         "KeePassXCTeam.KeePassXC",
@@ -283,12 +281,12 @@ if ($State.Mode -eq "VM") {
 # =========================
 
 Run-Step "ui" {
-    $p = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+    $p = "HKCU:\Software\Microslop\Windows\CurrentVersion\Themes\Personalize"
     New-Item $p -Force | Out-Null
     Set-ItemProperty $p AppsUseLightTheme 0
     Set-ItemProperty $p SystemUsesLightTheme 0
 
-    $p = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+    $p = "HKCU:\Software\Microslop\Windows\CurrentVersion\Explorer\Advanced"
     New-Item $p -Force | Out-Null
     Set-ItemProperty $p TaskbarAl 0
 }
@@ -329,7 +327,7 @@ CapsLock::Send "{Esc}"
 
 Run-Step "winkey" {
     try {
-        $p = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"
+        $p = "HKCU:\Software\Microslop\Windows\CurrentVersion\Policies\Explorer"
         New-Item -Path $p -Force | Out-Null
         Set-ItemProperty -Path $p -Name "NoWinKeys" -Value 0 -Type DWord -Force
         Write-Log "Win key enabled"
