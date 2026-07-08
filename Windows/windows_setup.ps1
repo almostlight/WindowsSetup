@@ -164,16 +164,26 @@ function Get-AutoHotkeyExe {
 
 Run-Step "packages" {
     @(
-        "Mozilla.Firefox",
-        "Microsoft.PowerShell",
+        "7zip.7zip",
+	"Bambulab.Bambustudio",
+        "Kitware.CMake",
         "Git.Git",
         "GitHub.cli",
-        "REALiX.HWiNFO",
-        "Microsoft.VisualStudioCode",
-        "vim.vim",
-        "7zip.7zip",
+        "GitHub.GitHubDesktop",
+        "Oracle.JDK.21",
+        "Oracle.JDK.26",
         "KeePassXCTeam.KeePassXC",
-        "Microsoft.PowerToys"
+        "Microsoft.Office",
+        "Microsoft.PowerShell",
+        "Microsoft.PowerToys",
+        "Microsoft.VisualStudioCode",
+        "Mozilla.Firefox",
+        "Nextcloud.NextcloudDesktop",
+        "REALiX.HWiNFO",
+        "Tailscale.Tailscale",
+        "WinFsp.WinFsp",
+        "vim.vim"
+
     ) | ForEach-Object { Install-Package $_ }
 }
 
@@ -452,18 +462,6 @@ Run-Step "autologon" {
 }
 
 # =========================
-# WINFSP
-# =========================
-
-Run-Step "winfsp" {
-    $msi = Join-Path $Downloads "winfsp.msi"
-    $url = Get-LatestGitHubRelease -Repo "winfsp/winfsp" -AssetPattern "*.msi"
-
-    Invoke-WebRequest $url -OutFile $msi
-    Start-Process msiexec.exe -ArgumentList "/i `"$msi`" /quiet" -Wait
-}
-
-# =========================
 # QUICK ACCESS PINNING
 # =========================
 
@@ -498,3 +496,5 @@ Run-Step "open log" {
 Stop-Process explorer -Force
 
 Write-Log "Provisioning complete"
+
+Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\Shell\" -Name "OneDrive" -ErrorAction SilentlyContinue
