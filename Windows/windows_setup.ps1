@@ -131,41 +131,11 @@ function Get-LatestGitHubRelease {
     return $asset.browser_download_url
 }
 
-function Get-AutoHotkeyExe {
-    foreach ($commandName in @("AutoHotkey64.exe", "AutoHotkey.exe")) {
-        $command = Get-Command $commandName -ErrorAction SilentlyContinue
-
-        if ($command) {
-            $path = $command.Source
-
-            if (-not $path) {
-                $path = $command.Path
-            }
-
-            if ($path -and (Test-Path $path)) {
-                return $path
-            }
-        }
-    }
-
-    foreach ($path in @(
-        "$env:ProgramFiles\AutoHotkey\v2\AutoHotkey64.exe",
-        "$env:ProgramFiles\AutoHotkey\v2\AutoHotkey.exe",
-        "$env:ProgramFiles\AutoHotkey\AutoHotkey64.exe",
-        "$env:ProgramFiles\AutoHotkey\AutoHotkey.exe"
-    )) {
-        if (Test-Path $path) {
-            return $path
-        }
-    }
-
-    return $null
-}
-
 Run-Step "packages" {
     @(
         "7zip.7zip",
-	"Bambulab.Bambustudio",
+        "AutoHotkey.AutoHotkey",
+	    "Bambulab.Bambustudio",
         "Kitware.CMake",
         "Git.Git",
         "GitHub.cli",
@@ -173,6 +143,8 @@ Run-Step "packages" {
         "Oracle.JDK.21",
         "Oracle.JDK.26",
         "KeePassXCTeam.KeePassXC",
+        "Microsoft.DotNet.DesktopRuntime.8",
+        "Microsoft.DotNet.DesktopRuntime.9",
         "Microsoft.Office",
         "Microsoft.PowerShell",
         "Microsoft.PowerToys",
@@ -185,12 +157,6 @@ Run-Step "packages" {
         "vim.vim"
 
     ) | ForEach-Object { Install-Package $_ }
-}
-
-Run-Step "autohotkey" {
-    if (-not (Get-AutoHotkeyExe)) {
-        Install-Package "AutoHotkey.AutoHotkey"
-    }
 }
 
 Run-Step "edge-blocker" {
@@ -236,13 +202,13 @@ Run-Step "repo" {
     }
 }
 
-Run-Step "ssh" {
-    if (-not (Get-Service sshd -ErrorAction SilentlyContinue)) {
-        Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
-    }
-    Set-Service sshd -StartupType Automatic
-    Start-Service sshd
-}
+# Run-Step "ssh" {
+#     if (-not (Get-Service sshd -ErrorAction SilentlyContinue)) {
+#         Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+#     }
+#     Set-Service sshd -StartupType Automatic
+#     Start-Service sshd
+# }
 
 Run-Step "rdp" {
     Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" `
@@ -284,6 +250,45 @@ if ($State.Mode -eq "VM") {
 
         if ($exe) { Start-Process $exe.FullName -Wait }
     }
+
+    Run-Step "vdd" {
+        $vddInstallPath = "C:\Program Files\VDD_Control"
+        $vddExe = Get-ChildItem $vddInstallPath -Recurse -Filter "VDD Control.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+
+        if ($vddExe) {
+            Write-Log "VDD already installed at $($vddExe.FullName), skipping download/install" "SUCCESS"
+            return
+        }
+
+        if (-not (Test-Path $vddInstallPath)) {
+            New-Item $vddInstallPath -ItemType Directory -Force | Out-Null
+        }
+
+        $vddUrl = Get-LatestGitHubRelease `
+            -Repo "VirtualDrivers/Virtual-Display-Driver" `
+            -AssetPattern "VDD.Control.*.zip"
+
+        $zip = Join-Path $env:TEMP "vdd.zip"
+        Invoke-WebRequest $vddUrl -OutFile $zip
+
+        Expand-Archive $zip $vddInstallPath -Force
+        Remove-Item $zip -Force
+
+        $exe = Get-ChildItem $vddInstallPath -Recurse -Filter "VDD Control.exe" | Select-Object -First 1
+
+        if ($exe) { Start-Process $exe.FullName }
+    }
+
+    Run-Step "autologon" {
+        $dir = Join-Path $Downloads "Autologon"
+        New-Item $dir -ItemType Directory -Force | Out-Null
+
+        Invoke-WebRequest "https://live.sysinternals.com/Autologon.exe" -OutFile "$dir\Autologon.exe"
+        Invoke-WebRequest "https://live.sysinternals.com/Autologon64.exe" -OutFile "$dir\Autologon64.exe"
+
+        Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" AutoAdminLogon "1"
+    }
+
 }
 
 # =========================
@@ -299,6 +304,8 @@ Run-Step "ui" {
     $p = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
     New-Item $p -Force | Out-Null
     Set-ItemProperty $p TaskbarAl 0
+
+    reg.exe add "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" /f /ve
 }
 
 Run-Step "keyboard" {
@@ -306,33 +313,6 @@ Run-Step "keyboard" {
     $lang[0].InputMethodTips.Clear()
     $lang[0].InputMethodTips.Add("0415:00000415")
     Set-WinUserLanguageList $lang -Force
-}
-
-Run-Step "capsremap" {
-    $ahkExe = Get-AutoHotkeyExe
-
-    if (-not $ahkExe) {
-        throw "AutoHotkey executable not found"
-    }
-
-    $remapDir = Join-Path $BasePath "Keyboard"
-    New-Item -ItemType Directory -Force -Path $remapDir | Out-Null
-
-    $remapScript = Join-Path $remapDir "CapsRemap.ahk"
-    @"
-#Requires AutoHotkey v2.0
-CapsLock::Send "{Esc}"
-+CapsLock::Send "{CapsLock}"
-"@ | Set-Content -Path $remapScript -Encoding UTF8
-
-    $startup = [Environment]::GetFolderPath("Startup")
-    $shortcutPath = Join-Path $startup "Caps Remap.lnk"
-    $shell = New-Object -ComObject WScript.Shell
-    $shortcut = $shell.CreateShortcut($shortcutPath)
-    $shortcut.TargetPath = $ahkExe
-    $shortcut.Arguments = "`"$remapScript`""
-    $shortcut.WorkingDirectory = $remapDir
-    $shortcut.Save()
 }
 
 Run-Step "winkey" {
@@ -363,38 +343,8 @@ Run-Step "debloat" {
     foreach ($a in $apps) {
         Get-AppxPackage -Name $a -AllUsers | Remove-AppxPackage -ErrorAction SilentlyContinue
     }
-}
 
-# =========================
-# VIRTUAL DISPLAY DRIVER
-# =========================
-
-Run-Step "vdd" {
-    $vddInstallPath = "C:\Program Files\VDD_Control"
-    $vddExe = Get-ChildItem $vddInstallPath -Recurse -Filter "VDD Control.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-
-    if ($vddExe) {
-        Write-Log "VDD already installed at $($vddExe.FullName), skipping download/install" "SUCCESS"
-        return
-    }
-
-    if (-not (Test-Path $vddInstallPath)) {
-        New-Item $vddInstallPath -ItemType Directory -Force | Out-Null
-    }
-
-    $vddUrl = Get-LatestGitHubRelease `
-        -Repo "VirtualDrivers/Virtual-Display-Driver" `
-        -AssetPattern "VDD.Control.*.zip"
-
-    $zip = Join-Path $env:TEMP "vdd.zip"
-    Invoke-WebRequest $vddUrl -OutFile $zip
-
-    Expand-Archive $zip $vddInstallPath -Force
-    Remove-Item $zip -Force
-
-    $exe = Get-ChildItem $vddInstallPath -Recurse -Filter "VDD Control.exe" | Select-Object -First 1
-
-    if ($exe) { Start-Process $exe.FullName }
+    Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\Shell\" -Name "OneDrive" -ErrorAction SilentlyContinue
 }
 
 # =========================
@@ -448,20 +398,6 @@ Run-Step "ddu" {
 }
 
 # =========================
-# AUTOLOGON
-# =========================
-
-Run-Step "autologon" {
-    $dir = Join-Path $Downloads "Autologon"
-    New-Item $dir -ItemType Directory -Force | Out-Null
-
-    Invoke-WebRequest "https://live.sysinternals.com/Autologon.exe" -OutFile "$dir\Autologon.exe"
-    Invoke-WebRequest "https://live.sysinternals.com/Autologon64.exe" -OutFile "$dir\Autologon64.exe"
-
-    Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" AutoAdminLogon "1"
-}
-
-# =========================
 # QUICK ACCESS PINNING
 # =========================
 
@@ -494,7 +430,4 @@ Run-Step "open log" {
 
 # Explorer restart
 Stop-Process explorer -Force
-
 Write-Log "Provisioning complete"
-
-Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\Shell\" -Name "OneDrive" -ErrorAction SilentlyContinue
